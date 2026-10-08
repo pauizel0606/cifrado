@@ -1,87 +1,130 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Mensajería cifrada</title>
+<title>Cifra</title>
 <style>
-:root{--bg:#fff;--fg:#111;--mut:#666;--me:#0b6bcb;--them:#eee;--bd:#ddd}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121212;--fg:#eee;--mut:#999;--them:#2a2a2a;--bd:#333}}
-:root[data-theme="dark"]{--bg:#121212;--fg:#eee;--mut:#999;--them:#2a2a2a;--bd:#333}
-:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--fg);font:16px system-ui,sans-serif;display:flex;flex-direction:column}
-#setup{padding:12px;display:grid;gap:8px;border-bottom:1px solid var(--bd);max-height:70%;overflow-y:auto}
-input,button,textarea{font:inherit;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg);min-width:0;box-sizing:border-box}
-textarea{width:100%;height:64px;font-size:12px;resize:none}
-button{background:var(--me);color:#fff;border:0;cursor:pointer}button:disabled{opacity:.5}
-button.sec{background:var(--them);color:var(--fg)}
-.row{display:flex;gap:8px}.row>*{flex:1}
-small{color:var(--mut)}
-#log{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px}
-.m{max-width:80%;padding:8px 12px;border-radius:14px;word-wrap:break-word;white-space:pre-wrap}
-.me{align-self:flex-end;background:var(--me);color:#fff}.them{align-self:flex-start;background:var(--them)}
-.sys{align-self:center;color:var(--mut);font-size:13px;text-align:center;max-width:95%}
-#bar{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--bd)}#msg{flex:1}
+:root{--bg:#07080d;--fg:#eef0f6;--mut:#8b90a3;--card:rgba(255,255,255,.05);--bd:rgba(255,255,255,.1);--acc:#7c8cff;--acc2:#4de1c1;--them:rgba(255,255,255,.08);--ok:#4de1c1;--err:#ff6b81;--wrk:#ffcf5c}
+@media(prefers-color-scheme:light){:root{--bg:#f4f5fa;--fg:#14151c;--mut:#6b7086;--card:rgba(255,255,255,.7);--bd:rgba(0,0,0,.08);--them:rgba(0,0,0,.06)}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:16px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;
+ padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.blob{position:fixed;width:46vmax;height:46vmax;border-radius:50%;filter:blur(90px);opacity:.35;z-index:0;animation:drift 22s ease-in-out infinite alternate}
+.b1{background:var(--acc);top:-15vmax;left:-10vmax}.b2{background:var(--acc2);bottom:-20vmax;right:-12vmax;animation-delay:-8s;opacity:.25}
+@keyframes drift{to{transform:translate(8vmax,6vmax) scale(1.15)}}
+.view{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;animation:in .6s cubic-bezier(.2,.8,.2,1)}
+@keyframes in{from{opacity:0;transform:translateY(14px) scale(.98)}}
+.hide{display:none!important}
+.card{width:100%;max-width:400px;padding:28px;border-radius:24px;background:var(--card);border:1px solid var(--bd);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+h1{margin:0 0 4px;font-size:28px;letter-spacing:-.03em;font-weight:650}
+.sub{color:var(--mut);font-size:14px;margin:0 0 22px}
+input{width:100%;padding:14px 16px;margin-bottom:10px;border-radius:14px;border:1px solid var(--bd);background:var(--them);color:var(--fg);font:inherit;outline:0;transition:.2s}
+input:focus{border-color:var(--acc);box-shadow:0 0 0 4px color-mix(in srgb,var(--acc) 22%,transparent)}
+button{font:inherit;cursor:pointer;border:0;color:#fff;transition:transform .15s,box-shadow .2s,opacity .2s}
+.go{width:100%;padding:14px;border-radius:14px;margin-top:6px;font-weight:600;background:linear-gradient(135deg,var(--acc),#a07cff);box-shadow:0 8px 24px color-mix(in srgb,var(--acc) 40%,transparent)}
+.go:hover{transform:translateY(-1px)}.go:active{transform:scale(.98)}.go:disabled{opacity:.5;cursor:default;transform:none}
+.pill{display:inline-flex;align-items:center;gap:8px;margin-top:16px;font-size:13px;color:var(--mut);min-height:20px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mut)}
+.pill[data-k=wait] .dot,.pill[data-k=work] .dot{background:var(--wrk);animation:pulse 1.2s infinite}
+.pill[data-k=ok] .dot{background:var(--ok)}.pill[data-k=err] .dot{background:var(--err)}
+@keyframes pulse{50%{opacity:.3;transform:scale(1.6)}}
+details{margin-top:16px;font-size:13px;color:var(--mut)}summary{cursor:pointer;outline:0}details input{margin-top:8px;font-size:13px;padding:10px 12px}
+#chat{padding:0;justify-content:flex-start;align-items:stretch}
+header{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--bd);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);background:var(--card)}
+header .t{flex:1;font-weight:600}.chip{font:12px ui-monospace,monospace;color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent);padding:4px 10px;border-radius:99px}
+.x{background:var(--them);color:var(--fg);border-radius:10px;padding:6px 12px;font-size:13px}
+#log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:8px;max-width:760px;width:100%;margin:0 auto}
+.m{max-width:78%;padding:10px 14px;border-radius:18px;word-wrap:break-word;white-space:pre-wrap;animation:pop .28s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.94)}}
+.me{align-self:flex-end;color:#fff;background:linear-gradient(135deg,var(--acc),#a07cff);border-bottom-right-radius:6px}
+.them{align-self:flex-start;background:var(--them);border-bottom-left-radius:6px}
+.sys{align-self:center;color:var(--mut);font-size:12px;text-align:center}
+#bar{display:flex;gap:8px;padding:12px 16px 16px;max-width:760px;width:100%;margin:0 auto}
+#bar input{margin:0;border-radius:99px;padding:14px 20px}
+#snd{width:48px;height:48px;border-radius:50%;flex:none;background:linear-gradient(135deg,var(--acc),#a07cff);font-size:18px}
+#snd:hover{transform:scale(1.07)}#snd:active{transform:scale(.94)}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
-<div id="setup">
- <input id="secret" type="password" placeholder="1. Secreto compartido (frase larga acordada en persona)">
- <small>2. Una persona pulsa «Crear invitación» y envía el código a la otra (por cualquier medio). La otra lo pega abajo, pulsa «Usar código pegado» y devuelve su código. La primera lo pega y vuelve a pulsar «Usar código pegado».</small>
- <div class="row"><button id="create">Crear invitación</button><button id="use" class="sec">Usar código pegado</button></div>
- <textarea id="inp" placeholder="Código recibido de la otra persona (pegar aquí)"></textarea>
- <textarea id="out" readonly placeholder="Tu código (cópialo y envíaselo)"></textarea>
- <button id="copy" class="sec">Copiar mi código</button>
+<div class="blob b1"></div><div class="blob b2"></div>
+
+<div class="view" id="join"><div class="card">
+ <h1>Cifra</h1><p class="sub">Mensajes que solo entiende quien conoce el secreto.</p>
+ <input id="room" placeholder="Sala" autocomplete="off" autocapitalize="off">
+ <input id="secret" type="password" placeholder="Secreto compartido (frase larga)">
+ <button class="go" id="go">Conectar</button>
+ <div class="pill" id="pill" data-k="idle"><span class="dot"></span><span id="st">Ambos escribís la misma sala y secreto</span></div>
+ <details><summary>Avanzado: servidor TURN propio</summary>
+  <input id="turl" placeholder="turn:servidor:3478"><input id="tuser" placeholder="Usuario"><input id="tpass" type="password" placeholder="Contraseña">
+ </details>
+</div></div>
+
+<div class="view hide" id="chat">
+ <header><span>🔒</span><span class="t">Conversación cifrada</span><span class="chip" id="code"></span><button class="x" id="leave">Salir</button></header>
+ <div id="log"></div>
+ <div id="bar"><input id="msg" placeholder="Escribe un mensaje" autocomplete="off"><button id="snd" aria-label="Enviar">➤</button></div>
 </div>
-<div id="log"><div class="m sys">Sin el secreto compartido nadie puede descifrar la conversación, ni siquiera quien intercepte los códigos. Ambos debéis estar conectados a la vez; nada se guarda.</div></div>
-<div id="bar"><input id="msg" placeholder="Mensaje" disabled><button id="snd" disabled>Enviar</button></div>
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script>
 const $=id=>document.getElementById(id),enc=new TextEncoder(),dec=new TextDecoder();
 const b64=u=>btoa(String.fromCharCode(...u)),unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 const hex=u=>[...u].map(x=>x.toString(16).padStart(2,'0')).join('');
 const nonce=n=>{const b=new Uint8Array(12);new DataView(b.buffer).setBigUint64(4,BigInt(n));return b};
 const cmp=(a,b)=>{for(let i=0;i<a.length;i++)if(a[i]!==b[i])return a[i]-b[i];return 0};
-const ECDH={name:'ECDH',namedCurve:'P-256'};
-let pc,dc,psk,priv,mine,theirs,sendK,recvK,sn,rn,ready,shaking,code,chain=Promise.resolve();
+const ECDH={name:'ECDH',namedCurve:'P-256'},BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt'];
+const myid=hex(crypto.getRandomValues(new Uint8Array(6)));
+let mq,topic,pc,dc,peer,pend,bi,timer,psk,priv,mine,theirs,sendK,recvK,sn,rn,ready,shaking,code,chain=Promise.resolve();
 
+function setState(k,t){$('pill').dataset.k=k;$('st').textContent=t}
 function add(t,c='sys'){const d=document.createElement('div');d.className='m '+c;d.textContent=t;$('log').append(d);$('log').scrollTop=1e9}
-function setReady(v){ready=v;$('msg').disabled=$('snd').disabled=!v;$('setup').style.display=v?'none':'grid'}
-function reset(){sendK=recvK=mine=theirs=priv=null;sn=rn=0;shaking=false;setReady(false)}
+function view(v){$('join').classList.toggle('hide',v!=='join');$('chat').classList.toggle('hide',v!=='chat')}
+function clean(){clearTimeout(timer);try{pc&&pc.close()}catch{}try{mq&&mq.end(true)}catch{}
+ pc=dc=mq=peer=priv=mine=theirs=sendK=recvK=null;pend=[];sn=rn=0;ready=shaking=false}
+function ice(){const s=[{urls:['stun:stun.l.google.com:19302','stun:stun.cloudflare.com:3478']},
+ {urls:['turn:openrelay.metered.ca:80','turn:openrelay.metered.ca:443','turns:openrelay.metered.ca:443'],username:'openrelayproject',credential:'openrelayproject'}];
+ if($('turl').value.trim())s.push({urls:$('turl').value.trim(),username:$('tuser').value,credential:$('tpass').value});return s}
 
-async function prep(){
- if(!window.crypto||!crypto.subtle){add('✖ Este navegador/contexto no permite cifrado (necesita HTTPS). Abre la página por https.');return false}
- if(!window.RTCPeerConnection){add('✖ Este navegador o entorno bloquea WebRTC. Prueba en Chrome/Firefox/Safari abriendo el enlace directamente, o con el archivo descargado.');return false}
- const s=$('secret').value;
- if(s.length<8){add('⚠ El secreto debe tener al menos 8 caracteres (mejor una frase larga).');return false}
- add('Derivando clave…');
+$('go').onclick=async()=>{
+ const room=$('room').value.trim(),s=$('secret').value;
+ if(!room||s.length<8)return setState('err','Indica sala y un secreto de al menos 8 caracteres');
+ $('go').disabled=true;clean();setState('work','Preparando clave segura…');
  const km=await crypto.subtle.importKey('raw',enc.encode(s),'PBKDF2',false,['deriveBits']);
  psk=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode('mensajeria-cifrada-v1'),iterations:600000,hash:'SHA-256'},km,256));
- reset();return true;
-}
-function mkpc(){
- pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
- pc.ondatachannel=e=>chan(e.channel);
- pc.oniceconnectionstatechange=()=>add('Estado de red: '+pc.iceConnectionState);
- pc.onconnectionstatechange=()=>{if(['failed','disconnected','closed'].includes(pc.connectionState)){reset();add('Conexión perdida.')}};
-}
-function chan(ch){dc=ch;ch.onopen=()=>{add('Conectado. Verificando clave…');newKey()};
- ch.onmessage=e=>{const m=JSON.parse(e.data);
-  if(m.t==='pub'){theirs=unb64(m.k);tryShake()}else if(m.t==='msg')chain=chain.then(()=>onMsg(m.d))}}
-const gathered=()=>new Promise(r=>{if(pc.iceGatheringState==='complete')return r();
- pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&r();setTimeout(r,8000)});
-const showCode=()=>{$('out').value=btoa(JSON.stringify(pc.localDescription));
- if(!/typ srflx/.test(pc.localDescription.sdp))add('⚠ No se obtuvo dirección pública (STUN bloqueado): solo conectará si ambos estáis en la misma wifi.')};
+ topic='cifra/'+hex(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode('room:'+room))));
+ bi=0;$('log').innerHTML='';signal();
+};
+$('leave').onclick=()=>{clean();view('join');$('go').disabled=false;setState('idle','Ambos escribís la misma sala y secreto')};
 
-$('create').onclick=async()=>{try{
- if(!await prep())return;mkpc();chan(pc.createDataChannel('c'));
- await pc.setLocalDescription(await pc.createOffer());await gathered();showCode();
- add('Envía tu código a la otra persona y pega aquí el suyo cuando te lo devuelva.')}catch(e){add('✖ No se pudo crear la invitación: '+(e&&e.name||'')+' '+(e&&e.message||e))}};
-$('use').onclick=async()=>{try{
- const d=JSON.parse(atob($('inp').value.trim()));
- if(pc&&pc.signalingState==='have-local-offer'){await pc.setRemoteDescription(d);add('Conectando…');
-  setTimeout(()=>{if(!ready)add('⏳ Sigue sin conectar. Causas habituales: redes distintas con NAT estricto (p. ej. datos móviles) o códigos desfasados. Prueba en la misma wifi, o repite todo con códigos nuevos sin recargar la página de quien invita.')},20000)}
- else{if(!await prep())return;mkpc();await pc.setRemoteDescription(d);
-  await pc.setLocalDescription(await pc.createAnswer());await gathered();showCode();
-  add('Devuelve tu código a quien te invitó. Se conectará en cuanto lo pegue.')}
-}catch(e){add('✖ Código no válido o error: '+(e&&e.name||'')+' '+(e&&e.message||e))}};
-$('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('out').value)}catch{$('out').select();document.execCommand('copy')}add('Código copiado.')};
+function fail(msg){clean();$('go').disabled=false;view('join');setState('err',msg+' Pulsa Conectar para reintentar.')}
+function signal(){
+ if(bi>=BROKERS.length)return fail('No se pudo contactar con el servicio de emparejamiento.');
+ setState('wait','Buscando a la otra persona…');let ok=false;
+ mq=mqtt.connect(BROKERS[bi++],{reconnectPeriod:0,connectTimeout:8000});
+ mq.on('connect',()=>{ok=true;mq.subscribe(topic,()=>sig({t:'hello'}))});
+ mq.on('message',(t,p)=>{try{onSig(JSON.parse(p.toString()))}catch{}});
+ const next=()=>{if(!ok&&!peer){try{mq.end(true)}catch{}signal()}};mq.on('error',next);mq.on('close',next);
+ timer=setTimeout(()=>{if(!ready)fail('Tiempo agotado: la otra persona no llegó o la red lo impide.')},60000);
+}
+function sig(m){mq&&mq.connected&&mq.publish(topic,JSON.stringify({f:myid,...m}))}
+
+async function onSig(m){
+ if(m.f===myid||(peer&&m.f!==peer))return;
+ if(m.t==='hello'&&!peer){peer=m.f;sig({t:'hello'});setState('work','Conectando de forma segura…');if(myid<peer)start()}
+ else if(m.t==='offer'){if(!pc)mkpc();await pc.setRemoteDescription(m.d);await flush();
+  await pc.setLocalDescription(await pc.createAnswer());sig({t:'answer',d:pc.localDescription})}
+ else if(m.t==='answer'&&pc){await pc.setRemoteDescription(m.d);await flush()}
+ else if(m.t==='ice'){pc&&pc.remoteDescription?pc.addIceCandidate(m.d).catch(()=>{}):pend.push(m.d)}
+}
+async function flush(){for(const c of pend.splice(0))await pc.addIceCandidate(c).catch(()=>{})}
+function mkpc(){
+ pc=new RTCPeerConnection({iceServers:ice()});
+ pc.onicecandidate=e=>e.candidate&&sig({t:'ice',d:e.candidate});
+ pc.ondatachannel=e=>chan(e.channel);
+ pc.oniceconnectionstatechange=()=>{if(pc&&pc.iceConnectionState==='failed')fail('No se pudo abrir la conexión directa (red muy restrictiva).')};
+}
+async function start(){mkpc();chan(pc.createDataChannel('c'));await pc.setLocalDescription(await pc.createOffer());sig({t:'offer',d:pc.localDescription})}
+function chan(ch){dc=ch;ch.onopen=()=>{setState('work','Verificando clave…');newKey()};
+ ch.onclose=()=>{if(ready){add('La otra persona se ha desconectado.');$('msg').disabled=$('snd').disabled=true}};
+ ch.onmessage=e=>{const m=JSON.parse(e.data);if(m.t==='pub'){theirs=unb64(m.k);tryShake()}else if(m.t==='msg')chain=chain.then(()=>onMsg(m.d))}}
 
 async function newKey(){
  const kp=await crypto.subtle.generateKey(ECDH,false,['deriveBits']);
@@ -95,30 +138,25 @@ async function tryShake(){
   const dh=await crypto.subtle.deriveBits({name:'ECDH',public:pub},priv,256);
   const hk=await crypto.subtle.importKey('raw',dh,'HKDF',false,['deriveBits']);
   const first=cmp(mine,theirs)<0,[lo,hi]=first?[mine,theirs]:[theirs,mine];
-  const k=new Uint8Array(await crypto.subtle.deriveBits({name:'HKDF',hash:'SHA-256',salt:psk,
-   info:new Uint8Array([...enc.encode('msg-v1'),...lo,...hi])},hk,768));
+  const k=new Uint8Array(await crypto.subtle.deriveBits({name:'HKDF',hash:'SHA-256',salt:psk,info:new Uint8Array([...enc.encode('msg-v1'),...lo,...hi])},hk,768));
   const key=s=>crypto.subtle.importKey('raw',s,'AES-GCM',false,['encrypt','decrypt']);
   const a=await key(k.slice(0,32)),b=await key(k.slice(32,64));
-  sendK=first?a:b;recvK=first?b:a;code=hex(k.slice(64,70)).toUpperCase();
-  await tx('OK');
- }catch{add('✖ Error en el intercambio de claves.')}
+  sendK=first?a:b;recvK=first?b:a;code=hex(k.slice(64,70)).toUpperCase();await tx('OK');
+ }catch{fail('Error en el intercambio de claves.')}
 }
-async function tx(text){
- const n=sn++,ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:nonce(n)},sendK,enc.encode(text));
- dc.send(JSON.stringify({t:'msg',d:b64(new Uint8Array(ct))}));
-}
+async function tx(text){const n=sn++,ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:nonce(n)},sendK,enc.encode(text));
+ dc.send(JSON.stringify({t:'msg',d:b64(new Uint8Array(ct))}))}
 async function onMsg(d){
  if(!recvK)return;
  try{
   const pt=dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:nonce(rn)},recvK,unb64(d)));rn++;
-  if(!ready){if(pt!=='OK')throw 0;setReady(true);
-   return add('🔒 Canal cifrado. Código de verificación: '+code+'\n(debe ser idéntico en ambos dispositivos)')}
+  if(!ready){if(pt!=='OK')throw 0;ready=true;clearTimeout(timer);try{mq.end(true)}catch{}
+   $('code').textContent=code;view('chat');$('msg').disabled=$('snd').disabled=false;$('msg').focus();
+   return add('Canal cifrado de extremo a extremo · compara el código de arriba con el de la otra persona')}
   add(pt,'them');
- }catch{
-  if(!ready){add('✖ No se pudo establecer el canal seguro (¿secreto incorrecto o conexión interceptada?).');pc.close()}
-  else add('⚠ Mensaje alterado o fuera de orden, descartado.');
- }
+ }catch{ if(!ready)fail('Secreto incorrecto o conexión interceptada.');else add('⚠ Mensaje alterado, descartado.')}
 }
 async function sendMsg(){const t=$('msg').value.trim();if(!t||!ready)return;$('msg').value='';await tx(t);add(t,'me')}
 $('snd').onclick=sendMsg;$('msg').onkeydown=e=>{if(e.key==='Enter')sendMsg()};
+['room','secret'].forEach(i=>$(i).onkeydown=e=>{if(e.key==='Enter')$('go').click()});
 </script></body></html>
