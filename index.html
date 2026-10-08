@@ -42,20 +42,33 @@ header .t{flex:1;font-weight:600;font-size:16px;letter-spacing:-.01em}
 #snd{width:38px;height:38px;border-radius:50%;flex:none;background:var(--acc);color:#fff;font-size:16px;display:grid;place-items:center}
 #snd:hover:not(:disabled){transform:scale(1.1)}#snd:active:not(:disabled){transform:scale(.9)}#snd:disabled{background:#d1d1d6;cursor:default}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+body{background:radial-gradient(900px 520px at 50% -8%,#fff,transparent 70%),var(--bg)}
+.logo{width:64px;height:64px;margin:0 auto 18px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(145deg,#2b8cff,#0057d9);box-shadow:0 10px 24px rgba(0,113,227,.35),inset 0 1px 0 rgba(255,255,255,.35);animation:float 5s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-4px)}}
+.pw{position:relative}.pw input{padding-right:48px}
+#eye{position:absolute;right:6px;top:6px;width:40px;height:40px;background:none;color:var(--mut);display:grid;place-items:center;border-radius:12px}#eye:hover{color:var(--fg)}
+.go.busy,.go.busy:hover{background:#6e6e73}
+.go.busy::before{content:"";display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+header .av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#2b8cff,#0057d9);flex:none}
+header .t small{display:block;font-weight:400;font-size:12px;line-height:1.2;color:var(--mut);letter-spacing:0}
+.m.gp{margin-bottom:-4px}.m.gp.me{border-bottom-right-radius:8px}.m.gp.them{border-bottom-left-radius:8px}
+#snd{background:#d1d1d6}#snd.on{background:var(--acc)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}input:focus-visible{outline:0}
 </style></head><body>
 
 <div class="view" id="join"><div class="card">
- <h1>Cifra</h1><p class="sub">Mensajes que solo entiende quien conoce el secreto.</p>
- <input id="room" placeholder="Sala" autocomplete="off" autocapitalize="off">
- <input id="secret" type="password" placeholder="Secreto compartido (frase larga)">
+ <div class="logo"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></div><h1>Cifra</h1><p class="sub">Mensajes que solo entiende quien conoce el secreto.</p>
+ <input id="room" placeholder="Nombre de la sala" autocomplete="off" autocapitalize="off">
+ <div class="pw"><input id="secret" type="password" placeholder="Secreto compartido (frase larga)"><button type="button" id="eye" aria-label="Mostrar u ocultar secreto"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
  <button class="go" id="go">Conectar</button>
  <div class="pill" id="pill" data-k="idle"><span class="dot"></span><span id="st">Ambos introducís la misma sala y secreto</span></div>
 </div></div>
 
 <div class="view hide" id="chat">
- <header><span class="t">Conversación cifrada</span><span class="chip" id="code"></span><button class="x" id="leave">Salir</button></header>
+ <header><span class="av"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></span><span class="t">Conversación cifrada<small>Cifrado de extremo a extremo</small></span><span class="chip" id="code"></span><button class="x" id="leave">Salir</button></header>
  <div id="log"></div>
- <div id="bar"><input id="msg" placeholder="Escribe un mensaje" autocomplete="off"><button id="snd" aria-label="Enviar">↑</button></div>
+ <div id="bar"><input id="msg" placeholder="Escribe un mensaje" autocomplete="off"><button id="snd" aria-label="Enviar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
@@ -69,14 +82,19 @@ const cmp=(a,b)=>{for(let i=0;i<a.length;i++)if(a[i]!==b[i])return a[i]-b[i];ret
 const ECDH={name:'ECDH',namedCurve:'P-256'};
 const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt','wss://test.mosquitto.org:8081'];
 const myid=rnd(6);
-let mqs=[],topic,peer,timer,psk,priv,mine,theirs,sendK,recvK,sn,lastN,ready,shaking,code,up,busy=false,bad=new Set(),seen=new Set(),chain=Promise.resolve();
+let mqs=[],topic,peer,timer,psk,priv,mine,theirs,sendK,recvK,sn,lastN,ready,shaking,code,up,busy=false,bad=new Set(),pendM=[],seen=new Set(),chain=Promise.resolve();
 
 function setState(k,t){$('pill').dataset.k=k;$('st').textContent=t}
-function add(t,c='sys'){const d=document.createElement('div');d.className='m '+c;d.textContent=t;$('log').append(d);$('log').scrollTop=1e9}
+let lastCls=null,lastT=0;
+function add(t,c='sys'){const L=$('log'),now=Date.now(),hm=new Date(now).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+ if(c!=='sys'&&now-lastT>300000){const x=document.createElement('div');x.className='m sys';x.textContent=hm;L.append(x);lastCls=null}
+ const d=document.createElement('div');d.className='m '+c;d.textContent=t;
+ if(c!=='sys'){d.title=hm;if(lastCls===c&&L.lastElementChild)L.lastElementChild.classList.add('gp');lastCls=c;lastT=now}else lastCls=null;
+ L.append(d);L.scrollTo({top:1e9,behavior:'smooth'})}
 function view(v){$('join').classList.toggle('hide',v!=='join');$('chat').classList.toggle('hide',v!=='chat')}
-function setBusy(b){busy=b;$('go').textContent=b?'Cancelar':'Conectar'}
+function setBusy(b){busy=b;$('go').classList.toggle('busy',b);$('go').textContent=b?'Cancelar':'Conectar'}
 function clean(){clearTimeout(timer);mqs.forEach(c=>{try{c.end(true)}catch{}});mqs=[];
- peer=priv=mine=theirs=sendK=recvK=null;sn=0;lastN=-1;ready=shaking=false;up=0;seen.clear();bad.clear()}
+ peer=priv=mine=theirs=sendK=recvK=null;sn=0;lastN=-1;ready=shaking=false;up=0;seen.clear();bad.clear();pendM=[]}
 function fail(msg){clean();setBusy(false);view('join');setState('err',msg)}
 
 $('go').onclick=async()=>{
@@ -84,7 +102,9 @@ $('go').onclick=async()=>{
  const room=$('room').value.trim(),s=$('secret').value;
  if(!room||s.length<8)return setState('err','Indica sala y un secreto de al menos 8 caracteres');
  if(typeof mqtt==='undefined')return setState('err','No se cargó la librería de red (¿sin internet?).');
- clean();setBusy(true);$('log').innerHTML='';setState('work','Preparando clave segura…');
+ if(!window.crypto||!crypto.subtle)return setState('err','Este navegador abrió la página sin HTTPS y bloquea el cifrado. Aloja el archivo con HTTPS (p. ej. Netlify Drop) y ábrelo desde ese enlace.');
+ clean();setBusy(true);$('log').innerHTML='';lastT=0;lastCls=null;setState('work','Preparando clave segura…');
+ try{
  const km=await crypto.subtle.importKey('raw',enc.encode(s),'PBKDF2',false,['deriveBits']);
  psk=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode('mensajeria-cifrada-v1'),iterations:600000,hash:'SHA-256'},km,256));
  topic='cifra/'+hex(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode('room:'+room))));
@@ -95,6 +115,7 @@ $('go').onclick=async()=>{
   c.on('connect',()=>{up++;c.subscribe(topic,{qos:0},()=>sendPub())});
   c.on('message',(t,p)=>{try{onSig(JSON.parse(p.toString()))}catch{}});c.on('error',()=>{})});
  timer=setTimeout(()=>{if(!up)fail('No se pudo contactar con la red. ¿Tu conexión bloquea WebSockets?')},12000);
+ }catch(e){fail('Error al preparar la conexión: '+(e&&e.message||e))}
 };
 $('leave').onclick=()=>{clean();setBusy(false);view('join');setState('idle','Ambos introducís la misma sala y secreto')};
 
@@ -104,7 +125,7 @@ function onSig(m){
  if(m.f===myid||seen.has(m.i))return;seen.add(m.i);
  if(m.t==='pub'){if(bad.has(m.f)||(peer&&m.f!==peer)||peer)return;
   peer=m.f;theirs=unb64(m.k);sendPub();setState('work','Verificando clave…');tryShake()}
- else if(m.t==='msg'&&m.f===peer)chain=chain.then(()=>onMsg(m));
+ else if(m.t==='msg'&&m.f===peer){if(recvK)chain=chain.then(()=>onMsg(m));else pendM.push(m)}
 }
 async function tryShake(){
  if(!mine||!theirs||shaking)return;shaking=true;
@@ -116,24 +137,27 @@ async function tryShake(){
   const k=new Uint8Array(await crypto.subtle.deriveBits({name:'HKDF',hash:'SHA-256',salt:psk,info:new Uint8Array([...enc.encode('msg-v1'),...lo,...hi])},hk,768));
   const key=s=>crypto.subtle.importKey('raw',s,'AES-GCM',false,['encrypt','decrypt']);
   const a=await key(k.slice(0,32)),b=await key(k.slice(32,64));
-  sendK=first?a:b;recvK=first?b:a;code=hex(k.slice(64,70)).toUpperCase();await tx('OK');
+  sendK=first?a:b;recvK=first?b:a;code=hex(k.slice(64,70)).toUpperCase();
+  pendM.splice(0).forEach(m=>{chain=chain.then(()=>onMsg(m))});
+  await tx('\u0001ok');let r=0;const iv=setInterval(()=>{if(ready||!sendK||++r>8)return clearInterval(iv);tx('\u0001ok')},1500);
  }catch{reject()}
 }
 async function tx(text){const n=sn++,ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:nonce(n)},sendK,enc.encode(text));
  sig({t:'msg',n,d:b64(new Uint8Array(ct))})}
-function reject(){bad.add(peer);peer=theirs=sendK=recvK=null;shaking=false;sn=0;lastN=-1;
+function reject(){pendM=[];bad.add(peer);peer=theirs=sendK=recvK=null;shaking=false;sn=0;lastN=-1;
  setState('err','Secreto distinto o intruso en la sala. Sigo esperando…');sendPub()}
 async function onMsg(m){
  if(!recvK||!(m.n>lastN))return;
  try{
   const pt=dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:nonce(m.n)},recvK,unb64(m.d)));lastN=m.n;
-  if(!ready){if(pt!=='OK')throw 0;ready=true;clearTimeout(timer);$('code').textContent=code;view('chat');
+  if(!ready){ready=true;clearTimeout(timer);$('code').textContent=code;view('chat');
    $('msg').disabled=$('snd').disabled=false;$('msg').focus();
-   return add('Canal cifrado de extremo a extremo · compara el código de arriba con el de la otra persona')}
-  add(pt,'them');
+   add('Canal cifrado de extremo a extremo · compara el código de arriba con el de la otra persona')}
+  if(pt[0]!=='\u0001')add(pt,'them');
  }catch{if(!ready)reject();else add('⚠ Mensaje alterado, descartado.')}
 }
-async function sendMsg(){const t=$('msg').value.trim();if(!t||!ready)return;$('msg').value='';await tx(t);add(t,'me')}
-$('snd').onclick=sendMsg;$('msg').onkeydown=e=>{if(e.key==='Enter')sendMsg()};
+async function sendMsg(){const t=$('msg').value.replace(/\u0001/g,'').trim();if(!t||!ready)return;$('msg').value='';$('snd').classList.remove('on');await tx(t);add(t,'me')}
+$('snd').onclick=sendMsg;$('msg').addEventListener('input',()=>$('snd').classList.toggle('on',!!$('msg').value.trim()));
+$('eye').onclick=()=>{const i=$('secret');i.type=i.type==='password'?'text':'password'};$('msg').onkeydown=e=>{if(e.key==='Enter')sendMsg()};
 ['room','secret'].forEach(i=>$(i).onkeydown=e=>{if(e.key==='Enter')$('go').click()});
 </script></body></html>
