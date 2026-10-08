@@ -1,0 +1,122 @@
+
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mensajería cifrada</title>
+<style>
+:root{--bg:#fff;--fg:#111;--mut:#666;--me:#0b6bcb;--them:#eee;--bd:#ddd}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121212;--fg:#eee;--mut:#999;--them:#2a2a2a;--bd:#333}}
+:root[data-theme="dark"]{--bg:#121212;--fg:#eee;--mut:#999;--them:#2a2a2a;--bd:#333}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:16px system-ui,sans-serif;display:flex;flex-direction:column}
+#setup{padding:12px;display:grid;gap:8px;border-bottom:1px solid var(--bd);max-height:70%;overflow-y:auto}
+input,button,textarea{font:inherit;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg);min-width:0;box-sizing:border-box}
+textarea{width:100%;height:64px;font-size:12px;resize:none}
+button{background:var(--me);color:#fff;border:0;cursor:pointer}button:disabled{opacity:.5}
+button.sec{background:var(--them);color:var(--fg)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+small{color:var(--mut)}
+#log{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px}
+.m{max-width:80%;padding:8px 12px;border-radius:14px;word-wrap:break-word;white-space:pre-wrap}
+.me{align-self:flex-end;background:var(--me);color:#fff}.them{align-self:flex-start;background:var(--them)}
+.sys{align-self:center;color:var(--mut);font-size:13px;text-align:center;max-width:95%}
+#bar{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--bd)}#msg{flex:1}
+</style></head><body>
+<div id="setup">
+ <input id="secret" type="password" placeholder="1. Secreto compartido (frase larga acordada en persona)">
+ <small>2. Una persona pulsa «Crear invitación» y envía el código a la otra (por cualquier medio). La otra lo pega abajo, pulsa «Usar código pegado» y devuelve su código. La primera lo pega y vuelve a pulsar «Usar código pegado».</small>
+ <div class="row"><button id="create">Crear invitación</button><button id="use" class="sec">Usar código pegado</button></div>
+ <textarea id="inp" placeholder="Código recibido de la otra persona (pegar aquí)"></textarea>
+ <textarea id="out" readonly placeholder="Tu código (cópialo y envíaselo)"></textarea>
+ <button id="copy" class="sec">Copiar mi código</button>
+</div>
+<div id="log"><div class="m sys">Sin el secreto compartido nadie puede descifrar la conversación, ni siquiera quien intercepte los códigos. Ambos debéis estar conectados a la vez; nada se guarda.</div></div>
+<div id="bar"><input id="msg" placeholder="Mensaje" disabled><button id="snd" disabled>Enviar</button></div>
+<script>
+const $=id=>document.getElementById(id),enc=new TextEncoder(),dec=new TextDecoder();
+const b64=u=>btoa(String.fromCharCode(...u)),unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const hex=u=>[...u].map(x=>x.toString(16).padStart(2,'0')).join('');
+const nonce=n=>{const b=new Uint8Array(12);new DataView(b.buffer).setBigUint64(4,BigInt(n));return b};
+const cmp=(a,b)=>{for(let i=0;i<a.length;i++)if(a[i]!==b[i])return a[i]-b[i];return 0};
+const ECDH={name:'ECDH',namedCurve:'P-256'};
+let pc,dc,psk,priv,mine,theirs,sendK,recvK,sn,rn,ready,shaking,code,chain=Promise.resolve();
+
+function add(t,c='sys'){const d=document.createElement('div');d.className='m '+c;d.textContent=t;$('log').append(d);$('log').scrollTop=1e9}
+function setReady(v){ready=v;$('msg').disabled=$('snd').disabled=!v;$('setup').style.display=v?'none':'grid'}
+function reset(){sendK=recvK=mine=theirs=priv=null;sn=rn=0;shaking=false;setReady(false)}
+
+async function prep(){
+ if(!window.crypto||!crypto.subtle){add('✖ Este navegador/contexto no permite cifrado (necesita HTTPS). Abre la página por https.');return false}
+ if(!window.RTCPeerConnection){add('✖ Este navegador o entorno bloquea WebRTC. Prueba en Chrome/Firefox/Safari abriendo el enlace directamente, o con el archivo descargado.');return false}
+ const s=$('secret').value;
+ if(s.length<8){add('⚠ El secreto debe tener al menos 8 caracteres (mejor una frase larga).');return false}
+ add('Derivando clave…');
+ const km=await crypto.subtle.importKey('raw',enc.encode(s),'PBKDF2',false,['deriveBits']);
+ psk=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode('mensajeria-cifrada-v1'),iterations:600000,hash:'SHA-256'},km,256));
+ reset();return true;
+}
+function mkpc(){
+ pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+ pc.ondatachannel=e=>chan(e.channel);
+ pc.onconnectionstatechange=()=>{if(['failed','disconnected','closed'].includes(pc.connectionState)){reset();add('Conexión perdida.')}};
+}
+function chan(ch){dc=ch;ch.onopen=()=>{add('Conectado. Verificando clave…');newKey()};
+ ch.onmessage=e=>{const m=JSON.parse(e.data);
+  if(m.t==='pub'){theirs=unb64(m.k);tryShake()}else if(m.t==='msg')chain=chain.then(()=>onMsg(m.d))}}
+const gathered=()=>new Promise(r=>{if(pc.iceGatheringState==='complete')return r();
+ pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&r();setTimeout(r,4000)});
+const showCode=()=>{$('out').value=btoa(JSON.stringify(pc.localDescription))};
+
+$('create').onclick=async()=>{try{
+ if(!await prep())return;mkpc();chan(pc.createDataChannel('c'));
+ await pc.setLocalDescription(await pc.createOffer());await gathered();showCode();
+ add('Envía tu código a la otra persona y pega aquí el suyo cuando te lo devuelva.')}catch(e){add('✖ No se pudo crear la invitación: '+(e&&e.name||'')+' '+(e&&e.message||e))}};
+$('use').onclick=async()=>{try{
+ const d=JSON.parse(atob($('inp').value.trim()));
+ if(pc&&pc.signalingState==='have-local-offer'){await pc.setRemoteDescription(d);add('Conectando…')}
+ else{if(!await prep())return;mkpc();await pc.setRemoteDescription(d);
+  await pc.setLocalDescription(await pc.createAnswer());await gathered();showCode();
+  add('Devuelve tu código a quien te invitó. Se conectará en cuanto lo pegue.')}
+}catch(e){add('✖ Código no válido o error: '+(e&&e.name||'')+' '+(e&&e.message||e))}};
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('out').value)}catch{$('out').select();document.execCommand('copy')}add('Código copiado.')};
+
+async function newKey(){
+ const kp=await crypto.subtle.generateKey(ECDH,false,['deriveBits']);
+ priv=kp.privateKey;mine=new Uint8Array(await crypto.subtle.exportKey('raw',kp.publicKey));
+ dc.send(JSON.stringify({t:'pub',k:b64(mine)}));tryShake();
+}
+async function tryShake(){
+ if(!mine||!theirs||shaking)return;shaking=true;
+ try{
+  const pub=await crypto.subtle.importKey('raw',theirs,ECDH,false,[]);
+  const dh=await crypto.subtle.deriveBits({name:'ECDH',public:pub},priv,256);
+  const hk=await crypto.subtle.importKey('raw',dh,'HKDF',false,['deriveBits']);
+  const first=cmp(mine,theirs)<0,[lo,hi]=first?[mine,theirs]:[theirs,mine];
+  const k=new Uint8Array(await crypto.subtle.deriveBits({name:'HKDF',hash:'SHA-256',salt:psk,
+   info:new Uint8Array([...enc.encode('msg-v1'),...lo,...hi])},hk,768));
+  const key=s=>crypto.subtle.importKey('raw',s,'AES-GCM',false,['encrypt','decrypt']);
+  const a=await key(k.slice(0,32)),b=await key(k.slice(32,64));
+  sendK=first?a:b;recvK=first?b:a;code=hex(k.slice(64,70)).toUpperCase();
+  await tx('OK');
+ }catch{add('✖ Error en el intercambio de claves.')}
+}
+async function tx(text){
+ const n=sn++,ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:nonce(n)},sendK,enc.encode(text));
+ dc.send(JSON.stringify({t:'msg',d:b64(new Uint8Array(ct))}));
+}
+async function onMsg(d){
+ if(!recvK)return;
+ try{
+  const pt=dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:nonce(rn)},recvK,unb64(d)));rn++;
+  if(!ready){if(pt!=='OK')throw 0;setReady(true);
+   return add('🔒 Canal cifrado. Código de verificación: '+code+'\n(debe ser idéntico en ambos dispositivos)')}
+  add(pt,'them');
+ }catch{
+  if(!ready){add('✖ No se pudo establecer el canal seguro (¿secreto incorrecto o conexión interceptada?).');pc.close()}
+  else add('⚠ Mensaje alterado o fuera de orden, descartado.');
+ }
+}
+async function sendMsg(){const t=$('msg').value.trim();if(!t||!ready)return;$('msg').value='';await tx(t);add(t,'me')}
+$('snd').onclick=sendMsg;$('msg').onkeydown=e=>{if(e.key==='Enter')sendMsg()};
+</script></body></html>
