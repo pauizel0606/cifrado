@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -59,14 +58,16 @@ async function prep(){
 function mkpc(){
  pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
  pc.ondatachannel=e=>chan(e.channel);
+ pc.oniceconnectionstatechange=()=>add('Estado de red: '+pc.iceConnectionState);
  pc.onconnectionstatechange=()=>{if(['failed','disconnected','closed'].includes(pc.connectionState)){reset();add('Conexión perdida.')}};
 }
 function chan(ch){dc=ch;ch.onopen=()=>{add('Conectado. Verificando clave…');newKey()};
  ch.onmessage=e=>{const m=JSON.parse(e.data);
   if(m.t==='pub'){theirs=unb64(m.k);tryShake()}else if(m.t==='msg')chain=chain.then(()=>onMsg(m.d))}}
 const gathered=()=>new Promise(r=>{if(pc.iceGatheringState==='complete')return r();
- pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&r();setTimeout(r,4000)});
-const showCode=()=>{$('out').value=btoa(JSON.stringify(pc.localDescription))};
+ pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&r();setTimeout(r,8000)});
+const showCode=()=>{$('out').value=btoa(JSON.stringify(pc.localDescription));
+ if(!/typ srflx/.test(pc.localDescription.sdp))add('⚠ No se obtuvo dirección pública (STUN bloqueado): solo conectará si ambos estáis en la misma wifi.')};
 
 $('create').onclick=async()=>{try{
  if(!await prep())return;mkpc();chan(pc.createDataChannel('c'));
@@ -74,7 +75,8 @@ $('create').onclick=async()=>{try{
  add('Envía tu código a la otra persona y pega aquí el suyo cuando te lo devuelva.')}catch(e){add('✖ No se pudo crear la invitación: '+(e&&e.name||'')+' '+(e&&e.message||e))}};
 $('use').onclick=async()=>{try{
  const d=JSON.parse(atob($('inp').value.trim()));
- if(pc&&pc.signalingState==='have-local-offer'){await pc.setRemoteDescription(d);add('Conectando…')}
+ if(pc&&pc.signalingState==='have-local-offer'){await pc.setRemoteDescription(d);add('Conectando…');
+  setTimeout(()=>{if(!ready)add('⏳ Sigue sin conectar. Causas habituales: redes distintas con NAT estricto (p. ej. datos móviles) o códigos desfasados. Prueba en la misma wifi, o repite todo con códigos nuevos sin recargar la página de quien invita.')},20000)}
  else{if(!await prep())return;mkpc();await pc.setRemoteDescription(d);
   await pc.setLocalDescription(await pc.createAnswer());await gathered();showCode();
   add('Devuelve tu código a quien te invitó. Se conectará en cuanto lo pegue.')}
