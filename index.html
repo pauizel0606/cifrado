@@ -70,6 +70,11 @@ header .t small{display:block;font-weight:400;font-size:12px;line-height:1.2;col
 #sheet h2{margin:0 0 6px;font-size:20px;letter-spacing:-.02em;text-align:center}#sheet p{margin:0 0 16px;color:var(--mut);font-size:14px;text-align:center}
 .ghost{width:100%;background:none;color:var(--acc);padding:12px;font-size:15px;border-radius:99px;margin-top:4px}.ghost:hover{background:var(--fill)}
 .x.hide{display:none}
+#att{width:38px;height:38px;border-radius:50%;flex:none;background:var(--fill);color:var(--mut);display:grid;place-items:center}#att:hover{color:var(--acc);transform:scale(1.08)}
+.chip:empty{display:none}header .t{min-width:0}header .t small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{min-width:22px;height:22px;padding:0 7px;border-radius:99px;background:var(--acc);color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center;flex:none}
+.m.img{padding:4px}
+.file{display:block;color:inherit;text-decoration:none;font-size:15px}.file img{display:block;max-width:240px;max-height:260px;border-radius:16px}
 </style></head><body>
 
 <div class="view" id="join"><div class="card">
@@ -82,9 +87,9 @@ header .t small{display:block;font-weight:400;font-size:12px;line-height:1.2;col
 </div></div>
 
 <div class="view hide" id="chat">
- <header><span class="av"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></span><span class="t">Conversación cifrada<small>Cifrado de extremo a extremo</small></span><span class="chip" id="code"></span><button class="x" id="save">Guardar</button><button class="x" id="leave">Salir</button></header>
+ <header><span class="av"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></span><span class="t">Conversación cifrada<small id="hs">Cifrado de extremo a extremo</small></span><span class="chip" id="code"></span><button class="x" id="save">Guardar</button><button class="x" id="leave">Salir</button></header>
  <div id="log"></div>
- <div id="bar"><input id="msg" placeholder="Escribe un mensaje" autocomplete="off"><button id="snd" aria-label="Enviar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+ <div id="bar"><button id="att" aria-label="Adjuntar foto o archivo"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.3-8.3"/></svg></button><input id="file" type="file" hidden><input id="msg" placeholder="Escribe un mensaje" autocomplete="off"><button id="snd" aria-label="Enviar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
 </div>
 
 <div id="sheet" class="hide"><div class="box"><h2>Guardar contacto</h2><p>Ponle un nombre para volver a hablar con esta persona en un toque. Se guarda solo en este dispositivo.</p>
@@ -93,7 +98,7 @@ header .t small{display:block;font-weight:400;font-size:12px;line-height:1.2;col
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script>
 const $=id=>document.getElementById(id),enc=new TextEncoder(),dec=new TextDecoder();
-const b64=u=>btoa(String.fromCharCode(...u)),unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const b64=u=>{let r='';for(let i=0;i<u.length;i+=8192)r+=String.fromCharCode(...u.subarray(i,i+8192));return btoa(r)},unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 const hex=u=>[...u].map(x=>x.toString(16).padStart(2,'0')).join('');
 const rnd=n=>hex(crypto.getRandomValues(new Uint8Array(n)));
 const nonce=n=>{const b=new Uint8Array(12);new DataView(b.buffer).setBigUint64(4,BigInt(n));return b};
@@ -104,15 +109,15 @@ const myid=rnd(6);
 let mqs=[],topic,peer,timer,psk,priv,mine,theirs,sendK,recvK,sn,lastN,ready,shaking,code,up,busy=false,bad=new Set(),pendM=[],seen=new Set(),chain=Promise.resolve();
 
 function setState(k,t){$('pill').dataset.k=k;$('st').textContent=t}
-let lastCls=null,lastT=0,cur=null,curId=null,leaving=false;
+let lastCls=null,lastT=0,cur=null,curId=null,leaving=false,inChat=false,lastHB=0,wd=null,okC=null,bgs=[];const seenB=new Set(),asm={};
 function add(t,c='sys'){const L=$('log'),now=Date.now(),hm=new Date(now).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
  if(c!=='sys'&&now-lastT>300000){const x=document.createElement('div');x.className='m sys';x.textContent=hm;L.append(x);lastCls=null}
- const d=document.createElement('div');d.className='m '+c;d.textContent=t;
+ const d=document.createElement('div');d.className='m '+c;if(typeof t==='string')d.textContent=t;else d.append(t);
  if(c!=='sys'){d.title=hm;if(lastCls===c&&L.lastElementChild)L.lastElementChild.classList.add('gp');lastCls=c;lastT=now}else lastCls=null;
  L.append(d);L.scrollTo({top:1e9,behavior:'smooth'})}
 function view(v){$('join').classList.toggle('hide',v!=='join');$('chat').classList.toggle('hide',v!=='chat')}
 function setBusy(b){busy=b;$('go').classList.toggle('busy',b);$('go').textContent=b?'Cancelar':'Conectar'}
-function clean(){clearTimeout(timer);mqs.forEach(c=>{try{c.end(true)}catch{}});mqs=[];
+function clean(){clearTimeout(timer);clearInterval(wd);inChat=false;okC=null;mqs.forEach(c=>{try{c.end(true)}catch{}});mqs=[];
  peer=priv=mine=theirs=sendK=recvK=null;sn=0;lastN=-1;ready=shaking=false;up=0;seen.clear();bad.clear();pendM=[]}
 function fail(msg){clean();setBusy(false);view('join');setState('err',msg)}
 
@@ -122,7 +127,7 @@ $('go').onclick=async()=>{
  if(!room||s.length<8)return setState('err','Indica sala y un secreto de al menos 8 caracteres');
  if(typeof mqtt==='undefined')return setState('err','No se cargó la librería de red (¿sin internet?).');
  if(!window.crypto||!crypto.subtle)return setState('err','Este navegador abrió la página sin HTTPS y bloquea el cifrado. Aloja el archivo con HTTPS (p. ej. Netlify Drop) y ábrelo desde ese enlace.');
- cur={room,secret:s};curId=(load().find(c=>c.room===room&&c.secret===s)||{}).id||null;
+ stopBg();cur={room,secret:s};curId=(load().find(c=>c.room===room&&c.secret===s)||{}).id||null;
  clean();setBusy(true);$('log').innerHTML='';lastT=0;lastCls=null;setState('work','Preparando clave segura…');
  try{
  const km=await crypto.subtle.importKey('raw',enc.encode(s),'PBKDF2',false,['deriveBits']);
@@ -130,10 +135,10 @@ $('go').onclick=async()=>{
  topic='cifra/'+hex(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode('room:'+room))));
  const kp=await crypto.subtle.generateKey(ECDH,false,['deriveBits']);
  priv=kp.privateKey;mine=new Uint8Array(await crypto.subtle.exportKey('raw',kp.publicKey));
- if(!busy)return;setState('wait','Esperando a la otra persona…');
+ if(!busy)return;okC=null;learn();if(curId)enterChat();setState('wait','Esperando a la otra persona…');
  BROKERS.forEach(u=>{const c=mqtt.connect(u,{reconnectPeriod:2000,connectTimeout:6000});mqs.push(c);
-  c.on('connect',()=>{up++;c.subscribe(topic,{qos:0},()=>sendPub())});
-  c.on('message',(t,p)=>{try{onSig(JSON.parse(p.toString()))}catch{}});c.on('error',()=>{})});
+  c.on('connect',()=>{up++;c.subscribe(topic,{qos:1},()=>sendPub());c.subscribe(topic+'/box/+',{qos:1})});
+  c.on('message',(t,p)=>{if(t.includes('/box/'))return onBox(t,p.toString());try{onSig(JSON.parse(p.toString()))}catch{}});c.on('error',()=>{})});
  timer=setTimeout(()=>{if(!up)fail('No se pudo contactar con la red. ¿Tu conexión bloquea WebSockets?')},12000);
  }catch(e){fail('Error al preparar la conexión: '+(e&&e.message||e))}
 };
@@ -141,32 +146,88 @@ const LS='cifra.contacts.v1';
 const load=()=>{try{return JSON.parse(localStorage.getItem(LS))||[]}catch{return[]}};
 const store=a=>{try{localStorage.setItem(LS,JSON.stringify(a));return true}catch{return false}};
 function touch(){if(!curId)return;const a=load(),c=a.find(x=>x.id===curId);if(c){c.last=Date.now();store(a)}}
-function renderContacts(){const el=$('contacts'),a=load().sort((x,y)=>y.last-x.last);el.innerHTML='';el.classList.toggle('hide',!a.length);if(!a.length)return;
+function renderContacts(){const el=$('contacts'),a=load().sort((x,y)=>y.last-x.last),IBc=loadIB();el.innerHTML='';el.classList.toggle('hide',!a.length);if(!a.length)return;
  const lb=t=>{const d=document.createElement('div');d.className='lbl';d.textContent=t;return d};el.append(lb('Contactos'));
  a.forEach(c=>{const r=document.createElement('div');r.className='crow';
-  r.innerHTML='<div class="cav"></div><div class="cin"><b></b><small></small></div><button class="cdel" aria-label="Eliminar">×</button>';
+  r.innerHTML='<div class="cav"></div><div class="cin"><b></b><small></small></div><span class="badge hide"></span><button class="cdel" aria-label="Eliminar">×</button>';
   const h=[...c.name].reduce((x,ch)=>(x*31+ch.charCodeAt(0))|0,7),av=r.querySelector('.cav');
   av.textContent=c.name[0].toUpperCase();av.style.background='hsl('+Math.abs(h)%360+' 55% 52%)';
-  r.querySelector('b').textContent=c.name;r.querySelector('small').textContent='Última vez: '+new Date(c.last).toLocaleDateString([],{day:'numeric',month:'short'});
+  r.querySelector('b').textContent=c.name;{const n=(IBc[c.id]||[]).length,bd=r.querySelector('.badge');bd.textContent=n;bd.classList.toggle('hide',!n)}r.querySelector('small').textContent='Última vez: '+new Date(c.last).toLocaleDateString([],{day:'numeric',month:'short'});
   r.onclick=()=>{if(busy)return;$('room').value=c.room;$('secret').value=c.secret;$('go').click()};
   r.querySelector('.cdel').onclick=e=>{e.stopPropagation();if(confirm('¿Eliminar a '+c.name+'?')){store(load().filter(x=>x.id!==c.id));renderContacts()}};
   el.append(r)});
  const sp=document.createElement('div');sp.className='sep';el.append(sp,lb('Nueva conversación'))}
 function openSheet(){$('cname').value='';$('sheet').classList.remove('hide');setTimeout(()=>$('cname').focus(),50)}
 function closeSheet(){$('sheet').classList.add('hide')}
-function doLeave(){clean();setBusy(false);cur=curId=null;leaving=false;view('join');setState('idle','Ambos introducís la misma sala y secreto');renderContacts()}
+function doLeave(){clean();setBusy(false);cur=curId=null;leaving=false;view('join');setState('idle','Ambos introducís la misma sala y secreto');renderContacts();startBg()}
 $('leave').onclick=()=>{if(ready&&!curId){leaving=true;openSheet()}else doLeave()};
 $('save').onclick=()=>{leaving=false;openSheet()};
 $('cskip').onclick=()=>{closeSheet();if(leaving)doLeave()};
 $('csave').onclick=()=>{const name=$('cname').value.trim();if(!name||!cur)return $('cname').focus();
  const a=load();let c=a.find(x=>x.room===cur.room&&x.secret===cur.secret);
- if(c)c.name=name;else{c={id:rnd(6),name,room:cur.room,secret:cur.secret,last:Date.now()};a.push(c)}
+ if(c){c.name=name;c.p=b64(psk);c.t=topic}else{c={id:rnd(6),name,room:cur.room,secret:cur.secret,last:Date.now(),p:b64(psk),t:topic};a.push(c)}
  const ok=store(a);closeSheet();
  if(!ok)add('⚠ Este navegador no permite guardar contactos.');else{curId=c.id;$('save').classList.add('hide');add('Contacto guardado: '+name)}
  if(leaving)doLeave();else renderContacts()};
 $('cname').onkeydown=e=>{if(e.key==='Enter')$('csave').click()};
+/* ===== Mensajes sin conexión, archivos y avisos ===== */
+const DEV=(()=>{try{let d=localStorage.getItem('cifra.dev');if(!d){d=rnd(6);localStorage.setItem('cifra.dev',d)}return d}catch{return rnd(6)}})();
+const IB='cifra.inbox.v1',OFFMAX=60000,LIVEMAX=5e6;
+const loadIB=()=>{try{return JSON.parse(localStorage.getItem(IB))||{}}catch{return{}}};
+const storeIB=o=>{try{localStorage.setItem(IB,JSON.stringify(o));return true}catch{return false}};
+async function okey(p){const hk=await crypto.subtle.importKey('raw',p,'HKDF',false,['deriveKey']);
+ return crypto.subtle.deriveKey({name:'HKDF',hash:'SHA-256',salt:new Uint8Array(),info:enc.encode('offline-v1')},hk,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function seal(k,o){const iv=crypto.getRandomValues(new Uint8Array(12));
+ const c=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,enc.encode(JSON.stringify(o)));return JSON.stringify({v:1,iv:b64(iv),c:b64(new Uint8Array(c))})}
+async function unseal(k,s){const m=JSON.parse(s);return JSON.parse(dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(m.iv)},k,unb64(m.c))))}
+async function sendOffline(p){const o={i:rnd(8),f:DEV,ts:Date.now(),...p};okC=okC||await okey(psk);const s=await seal(okC,o);
+ if(!mqs.some(c=>c.connected))throw 0;mqs.forEach(c=>c.connected&&c.publish(topic+'/box/'+o.i,s,{qos:1,retain:true}));return o}
+async function onBox(t,s){if(!s)return;try{okC=okC||await okey(psk);const o=await unseal(okC,s);
+ if(o.f===DEV||seenB.has(o.i))return;seenB.add(o.i);mqs.forEach(c=>c.connected&&c.publish(t,'',{qos:1,retain:true}));render(o,'them')}catch{}}
+function render(o,cls){if(o.k==='f')addFile(cls,o.name,o.type,new Blob([unb64(o.d)],{type:o.type}));else add(o.x,cls)}
+function learn(){if(!curId)return;const a=load(),c=a.find(x=>x.id===curId);if(c&&(!c.p||!c.t)){c.p=b64(psk);c.t=topic;store(a)}}
+function setHS(){$('hs').textContent=ready?'Conectado · cifrado de extremo a extremo':'Sin conexión · tus mensajes se entregarán cuando se conecte'}
+function enterChat(){inChat=true;view('chat');$('code').textContent='';$('save').classList.add('hide');setHS();$('msg').disabled=$('snd').disabled=false;
+ const ib=loadIB(),l=ib[curId]||[];
+ if(l.length){add(l.length===1?'Tienes 1 mensaje nuevo':'Tienes '+l.length+' mensajes nuevos');l.forEach(o=>render(o,'them'));delete ib[curId];storeIB(ib)}
+ else add('Si no está conectada, recibirá tus mensajes cuando entre.');startWatch()}
+function startWatch(){clearInterval(wd);wd=setInterval(()=>{if(!inChat)return;
+ if(ready){tx('\u0001hb').catch(()=>{});if(Date.now()-lastHB>12000)dropPeer()}else sendPub()},4000)}
+function dropPeer(){ready=false;peer=theirs=sendK=recvK=null;shaking=false;sn=0;lastN=-1;pendM=[];setHS();$('code').textContent='';add('La otra persona se desconectó. Tus mensajes se entregarán cuando vuelva.')}
+async function startBg(){stopBg();if(busy||!window.mqtt||!crypto.subtle)return;const cs=load().filter(c=>c.p&&c.t),keys={};if(!cs.length)return;
+ for(const c of cs)keys[c.t]=[c,await okey(unb64(c.p))];if(busy)return;
+ bgs=BROKERS.map(u=>{const b=mqtt.connect(u,{reconnectPeriod:5000,connectTimeout:6000});
+  b.on('connect',()=>cs.forEach(c=>b.subscribe(c.t+'/box/+',{qos:1})));b.on('error',()=>{});
+  b.on('message',async(t,p)=>{const s=p.toString(),e=keys[t.split('/box/')[0]];if(!s||!e)return;
+   try{const o=await unseal(e[1],s);if(o.f===DEV||seenB.has(o.i))return;seenB.add(o.i);
+    const ib=loadIB();(ib[e[0].id]=ib[e[0].id]||[]).push(o);
+    if(storeIB(ib)){bgs.forEach(x=>x.connected&&x.publish(t,'',{qos:1,retain:true}));renderContacts()}else seenB.delete(o.i)}catch{}});
+  return b})}
+function stopBg(){bgs.forEach(b=>{try{b.end(true)}catch{}});bgs=[]}
+function addFile(cls,name,type,blob){const u=URL.createObjectURL(blob),a=document.createElement('a'),img=(type||'').startsWith('image/');
+ a.href=u;a.download=name;a.target='_blank';a.className='file';
+ if(img){const im=document.createElement('img');im.src=u;im.alt=name;a.append(im)}else a.textContent='📄 '+name+' · '+Math.max(1,Math.round(blob.size/1024))+' KB';
+ add(a,cls+(img?' img':''))}
+function chunk(c){const a=asm[c.i]=asm[c.i]||{n:c.n,p:[],got:0,name:c.name,type:c.type};
+ if(!a.p[c.k]){a.p[c.k]=unb64(c.d);a.got++}
+ if(a.got===a.n){delete asm[c.i];addFile('them',a.name,a.type,new Blob(a.p,{type:a.type}))}}
+async function shrink(f){const bm=await createImageBitmap(f);let sc=Math.min(1,1280/Math.max(bm.width,bm.height)),q=.8,b;
+ for(let i=0;i<7;i++){const c=document.createElement('canvas');c.width=Math.round(bm.width*sc);c.height=Math.round(bm.height*sc);
+  c.getContext('2d').drawImage(bm,0,0,c.width,c.height);b=await new Promise(r=>c.toBlob(r,'image/jpeg',q));if(b.size<=OFFMAX)return b;sc*=.78;q=Math.max(.5,q-.07)}return b}
+async function sendFile(f){
+ if(ready){if(f.size>LIVEMAX)return add('⚠ Archivo demasiado grande (máx. 5 MB).');
+  add('Enviando «'+f.name+'»…');const id=rnd(6),CH=24576,n=Math.max(1,Math.ceil(f.size/CH)),buf=new Uint8Array(await f.arrayBuffer());
+  for(let k=0;k<n;k++){await tx('\u0002'+JSON.stringify({i:id,k,n,name:f.name,type:f.type,d:b64(buf.subarray(k*CH,(k+1)*CH))}));await new Promise(r=>setTimeout(r,25))}
+  return addFile('me',f.name,f.type,f)}
+ try{let b=f;if((f.type||'').startsWith('image/'))b=await shrink(f);
+  if(b.size>OFFMAX)return add('⚠ Sin conexión solo se pueden enviar archivos de hasta 60 KB (las fotos se reducen solas). Espera a que la otra persona se conecte.');
+  await sendOffline({k:'f',name:f.name,type:b.type||f.type,d:b64(new Uint8Array(await b.arrayBuffer()))});addFile('me',f.name,b.type||f.type,b)}
+ catch{add('⚠ No se pudo guardar el archivo para entregarlo más tarde.')}}
+$('att').onclick=()=>$('file').click();
+$('file').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(f&&inChat)await sendFile(f)};
 
-function sig(m){const s=JSON.stringify({i:rnd(8),f:myid,...m});mqs.forEach(c=>c.connected&&c.publish(topic,s))}
+
+function sig(m){const s=JSON.stringify({i:rnd(8),f:myid,...m});mqs.forEach(c=>c.connected&&c.publish(topic,s,{qos:m.t==='msg'?1:0}))}
 function sendPub(){if(mine&&!ready)sig({t:'pub',k:b64(mine)})}
 function onSig(m){
  if(m.f===myid||seen.has(m.i))return;seen.add(m.i);
@@ -196,16 +257,17 @@ function reject(){pendM=[];bad.add(peer);peer=theirs=sendK=recvK=null;shaking=fa
 async function onMsg(m){
  if(!recvK||!(m.n>lastN))return;
  try{
-  const pt=dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:nonce(m.n)},recvK,unb64(m.d)));lastN=m.n;
-  if(!ready){ready=true;clearTimeout(timer);$('code').textContent=code;touch();$('save').classList.toggle('hide',!!curId);view('chat');
+  const pt=dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:nonce(m.n)},recvK,unb64(m.d)));lastN=m.n;lastHB=Date.now();
+  if(!ready){ready=true;clearTimeout(timer);$('code').textContent=code;touch();$('save').classList.toggle('hide',!!curId);inChat=true;setHS();startWatch();view('chat');
    $('msg').disabled=$('snd').disabled=false;$('msg').focus();
    add('Canal cifrado de extremo a extremo · compara el código de arriba con el de la otra persona')}
-  if(pt[0]!=='\u0001')add(pt,'them');
+  if(pt[0]==='\u0002')chunk(JSON.parse(pt.slice(1)));else if(pt[0]!=='\u0001')add(pt,'them');
  }catch{if(!ready)reject();else add('⚠ Mensaje alterado, descartado.')}
 }
-async function sendMsg(){const t=$('msg').value.replace(/\u0001/g,'').trim();if(!t||!ready)return;$('msg').value='';$('snd').classList.remove('on');await tx(t);add(t,'me')}
+async function sendMsg(){const t=$('msg').value.replace(/\u0001|\u0002/g,'').trim();if(!t||!inChat)return;$('msg').value='';$('snd').classList.remove('on');
+ if(ready){await tx(t);add(t,'me')}else try{await sendOffline({k:'t',x:t});add(t,'me')}catch{add('⚠ No se pudo guardar el mensaje para entregarlo más tarde.')}}
 $('snd').onclick=sendMsg;$('msg').addEventListener('input',()=>$('snd').classList.toggle('on',!!$('msg').value.trim()));
 $('eye').onclick=()=>{const i=$('secret');i.type=i.type==='password'?'text':'password'};$('msg').onkeydown=e=>{if(e.key==='Enter')sendMsg()};
 ['room','secret'].forEach(i=>$(i).onkeydown=e=>{if(e.key==='Enter')$('go').click()});
-renderContacts();
+renderContacts();startBg();
 </script></body></html>
