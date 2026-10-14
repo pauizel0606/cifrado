@@ -55,10 +55,26 @@ header .t small{display:block;font-weight:400;font-size:12px;line-height:1.2;col
 .m.gp{margin-bottom:-4px}.m.gp.me{border-bottom-right-radius:8px}.m.gp.them{border-bottom-left-radius:8px}
 #snd{background:#d1d1d6}#snd.on{background:var(--acc)}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px}input:focus-visible{outline:0}
+#join{overflow-y:auto;justify-content:flex-start}.card{margin:auto 0}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);margin:0 4px 8px}
+#contacts.hide{display:none}
+.crow{display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:6px;border-radius:16px;background:var(--fill);cursor:pointer;transition:transform .2s cubic-bezier(.3,1.4,.5,1),background .2s;animation:pop .35s}
+.crow:hover{background:#ececf0}.crow:active{transform:scale(.98)}
+.cav{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;flex:none}
+.cin{flex:1;min-width:0}.cin b{display:block;font-weight:600;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cin small{color:var(--mut);font-size:12px}
+.cdel{background:none;color:#c7c7cc;font-size:22px;line-height:1;padding:4px 8px;border-radius:10px}.cdel:hover{color:var(--err)}
+.sep{height:1px;background:var(--bd);margin:12px 0 14px}
+#sheet{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.28);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:in .25s}
+#sheet.hide{display:none!important}
+#sheet .box{width:100%;max-width:340px;background:#fff;border-radius:24px;padding:26px 22px 18px;box-shadow:0 20px 60px rgba(0,0,0,.25);animation:pop .35s cubic-bezier(.2,1.2,.4,1)}
+#sheet h2{margin:0 0 6px;font-size:20px;letter-spacing:-.02em;text-align:center}#sheet p{margin:0 0 16px;color:var(--mut);font-size:14px;text-align:center}
+.ghost{width:100%;background:none;color:var(--acc);padding:12px;font-size:15px;border-radius:99px;margin-top:4px}.ghost:hover{background:var(--fill)}
+.x.hide{display:none}
 </style></head><body>
 
 <div class="view" id="join"><div class="card">
  <div class="logo"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></div><h1>Cifra</h1><p class="sub">Mensajes que solo entiende quien conoce el secreto.</p>
+ <div id="contacts" class="hide"></div>
  <input id="room" placeholder="Nombre de la sala" autocomplete="off" autocapitalize="off">
  <div class="pw"><input id="secret" type="password" placeholder="Secreto compartido (frase larga)"><button type="button" id="eye" aria-label="Mostrar u ocultar secreto"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
  <button class="go" id="go">Conectar</button>
@@ -66,10 +82,13 @@ header .t small{display:block;font-weight:400;font-size:12px;line-height:1.2;col
 </div></div>
 
 <div class="view hide" id="chat">
- <header><span class="av"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></span><span class="t">Conversación cifrada<small>Cifrado de extremo a extremo</small></span><span class="chip" id="code"></span><button class="x" id="leave">Salir</button></header>
+ <header><span class="av"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></span><span class="t">Conversación cifrada<small>Cifrado de extremo a extremo</small></span><span class="chip" id="code"></span><button class="x" id="save">Guardar</button><button class="x" id="leave">Salir</button></header>
  <div id="log"></div>
  <div id="bar"><input id="msg" placeholder="Escribe un mensaje" autocomplete="off"><button id="snd" aria-label="Enviar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
 </div>
+
+<div id="sheet" class="hide"><div class="box"><h2>Guardar contacto</h2><p>Ponle un nombre para volver a hablar con esta persona en un toque. Se guarda solo en este dispositivo.</p>
+ <input id="cname" placeholder="Nombre" maxlength="30" autocomplete="off"><button class="go" id="csave">Guardar</button><button class="ghost" id="cskip">Ahora no</button></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script>
@@ -85,7 +104,7 @@ const myid=rnd(6);
 let mqs=[],topic,peer,timer,psk,priv,mine,theirs,sendK,recvK,sn,lastN,ready,shaking,code,up,busy=false,bad=new Set(),pendM=[],seen=new Set(),chain=Promise.resolve();
 
 function setState(k,t){$('pill').dataset.k=k;$('st').textContent=t}
-let lastCls=null,lastT=0;
+let lastCls=null,lastT=0,cur=null,curId=null,leaving=false;
 function add(t,c='sys'){const L=$('log'),now=Date.now(),hm=new Date(now).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
  if(c!=='sys'&&now-lastT>300000){const x=document.createElement('div');x.className='m sys';x.textContent=hm;L.append(x);lastCls=null}
  const d=document.createElement('div');d.className='m '+c;d.textContent=t;
@@ -103,6 +122,7 @@ $('go').onclick=async()=>{
  if(!room||s.length<8)return setState('err','Indica sala y un secreto de al menos 8 caracteres');
  if(typeof mqtt==='undefined')return setState('err','No se cargó la librería de red (¿sin internet?).');
  if(!window.crypto||!crypto.subtle)return setState('err','Este navegador abrió la página sin HTTPS y bloquea el cifrado. Aloja el archivo con HTTPS (p. ej. Netlify Drop) y ábrelo desde ese enlace.');
+ cur={room,secret:s};curId=(load().find(c=>c.room===room&&c.secret===s)||{}).id||null;
  clean();setBusy(true);$('log').innerHTML='';lastT=0;lastCls=null;setState('work','Preparando clave segura…');
  try{
  const km=await crypto.subtle.importKey('raw',enc.encode(s),'PBKDF2',false,['deriveBits']);
@@ -117,7 +137,34 @@ $('go').onclick=async()=>{
  timer=setTimeout(()=>{if(!up)fail('No se pudo contactar con la red. ¿Tu conexión bloquea WebSockets?')},12000);
  }catch(e){fail('Error al preparar la conexión: '+(e&&e.message||e))}
 };
-$('leave').onclick=()=>{clean();setBusy(false);view('join');setState('idle','Ambos introducís la misma sala y secreto')};
+const LS='cifra.contacts.v1';
+const load=()=>{try{return JSON.parse(localStorage.getItem(LS))||[]}catch{return[]}};
+const store=a=>{try{localStorage.setItem(LS,JSON.stringify(a));return true}catch{return false}};
+function touch(){if(!curId)return;const a=load(),c=a.find(x=>x.id===curId);if(c){c.last=Date.now();store(a)}}
+function renderContacts(){const el=$('contacts'),a=load().sort((x,y)=>y.last-x.last);el.innerHTML='';el.classList.toggle('hide',!a.length);if(!a.length)return;
+ const lb=t=>{const d=document.createElement('div');d.className='lbl';d.textContent=t;return d};el.append(lb('Contactos'));
+ a.forEach(c=>{const r=document.createElement('div');r.className='crow';
+  r.innerHTML='<div class="cav"></div><div class="cin"><b></b><small></small></div><button class="cdel" aria-label="Eliminar">×</button>';
+  const h=[...c.name].reduce((x,ch)=>(x*31+ch.charCodeAt(0))|0,7),av=r.querySelector('.cav');
+  av.textContent=c.name[0].toUpperCase();av.style.background='hsl('+Math.abs(h)%360+' 55% 52%)';
+  r.querySelector('b').textContent=c.name;r.querySelector('small').textContent='Última vez: '+new Date(c.last).toLocaleDateString([],{day:'numeric',month:'short'});
+  r.onclick=()=>{if(busy)return;$('room').value=c.room;$('secret').value=c.secret;$('go').click()};
+  r.querySelector('.cdel').onclick=e=>{e.stopPropagation();if(confirm('¿Eliminar a '+c.name+'?')){store(load().filter(x=>x.id!==c.id));renderContacts()}};
+  el.append(r)});
+ const sp=document.createElement('div');sp.className='sep';el.append(sp,lb('Nueva conversación'))}
+function openSheet(){$('cname').value='';$('sheet').classList.remove('hide');setTimeout(()=>$('cname').focus(),50)}
+function closeSheet(){$('sheet').classList.add('hide')}
+function doLeave(){clean();setBusy(false);cur=curId=null;leaving=false;view('join');setState('idle','Ambos introducís la misma sala y secreto');renderContacts()}
+$('leave').onclick=()=>{if(ready&&!curId){leaving=true;openSheet()}else doLeave()};
+$('save').onclick=()=>{leaving=false;openSheet()};
+$('cskip').onclick=()=>{closeSheet();if(leaving)doLeave()};
+$('csave').onclick=()=>{const name=$('cname').value.trim();if(!name||!cur)return $('cname').focus();
+ const a=load();let c=a.find(x=>x.room===cur.room&&x.secret===cur.secret);
+ if(c)c.name=name;else{c={id:rnd(6),name,room:cur.room,secret:cur.secret,last:Date.now()};a.push(c)}
+ const ok=store(a);closeSheet();
+ if(!ok)add('⚠ Este navegador no permite guardar contactos.');else{curId=c.id;$('save').classList.add('hide');add('Contacto guardado: '+name)}
+ if(leaving)doLeave();else renderContacts()};
+$('cname').onkeydown=e=>{if(e.key==='Enter')$('csave').click()};
 
 function sig(m){const s=JSON.stringify({i:rnd(8),f:myid,...m});mqs.forEach(c=>c.connected&&c.publish(topic,s))}
 function sendPub(){if(mine&&!ready)sig({t:'pub',k:b64(mine)})}
@@ -150,7 +197,7 @@ async function onMsg(m){
  if(!recvK||!(m.n>lastN))return;
  try{
   const pt=dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:nonce(m.n)},recvK,unb64(m.d)));lastN=m.n;
-  if(!ready){ready=true;clearTimeout(timer);$('code').textContent=code;view('chat');
+  if(!ready){ready=true;clearTimeout(timer);$('code').textContent=code;touch();$('save').classList.toggle('hide',!!curId);view('chat');
    $('msg').disabled=$('snd').disabled=false;$('msg').focus();
    add('Canal cifrado de extremo a extremo · compara el código de arriba con el de la otra persona')}
   if(pt[0]!=='\u0001')add(pt,'them');
@@ -160,4 +207,5 @@ async function sendMsg(){const t=$('msg').value.replace(/\u0001/g,'').trim();if(
 $('snd').onclick=sendMsg;$('msg').addEventListener('input',()=>$('snd').classList.toggle('on',!!$('msg').value.trim()));
 $('eye').onclick=()=>{const i=$('secret');i.type=i.type==='password'?'text':'password'};$('msg').onkeydown=e=>{if(e.key==='Enter')sendMsg()};
 ['room','secret'].forEach(i=>$(i).onkeydown=e=>{if(e.key==='Enter')$('go').click()});
+renderContacts();
 </script></body></html>
